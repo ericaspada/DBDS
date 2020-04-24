@@ -1,6 +1,6 @@
 use GEO
 geo = db.GEO
-geo.find().limit(1)
+
 // make a new collection choosing the two samples to compare and the list of 10 gene probes
 var target1 = 'icSARS' // sample we are interested in
 var target2 = 'Mock' // control (mock infection)
@@ -18,16 +18,16 @@ var aggregated = geo.aggregate(
     // probeAvg: {$avg: '$probeArray'}} // take the average of the 3 replicates
    ]
 ).toArray()
-aggregated // OUTPUT THIS TO A NEW COLLECTION 
+aggregated // TO DO: OUTPUT THIS TO A NEW COLLECTION 
    
 /// KMEANS for 1 dimension///
-/// set parameters ///   
+/// set parameters ///
 target_name = 'icSARS' // can only uses data for a single sample (1 dimension)
 collection = db.genome_icSARS // give the collection name
 var k = 3 // set the number of clusters
    
 //aggregated.aggregate([{$match: {'FactorValue [INFECTION CODE]': {$in: [target_name]}}}]); 
-// this should return a single document
+// TO DO: this should return a single document
 
 var testarray = aggregated[1].probeArray
 var clusters = Array.from(Array(k).keys()) // create clusters
@@ -41,39 +41,34 @@ function mean(element){
     var mean = element.reduce((a,b) => a+b)/n;
     return mean}; // calculates mean for an array
 
-// loop starts here
 do {
     
-var cluster_state = testarray.map(function(val){
-    var distances = centroids.map(c => (distance(val,c))) // distance between each centroid and value
-    min = Math.min.apply(Math,distances) // min distance 
-    nearest = distances.indexOf(Math.min.apply(Math,distances)) // get the nearest cluster
-    return [val, nearest]
-}) // returns an array for each value with the value and the nearest cluster
-//cluster_state
+    var cluster_state = testarray.map(function(val){
+        var distances = centroids.map(c => (distance(val,c))) // distance between each centroid and value
+        min = Math.min.apply(Math,distances) // min distance
+        nearest = distances.indexOf(Math.min.apply(Math,distances)) // get the nearest cluster
+        return [val, nearest]
+    }) // returns an array for each value with the value and the nearest cluster
 
-var allclusters = clusters.map(function(cluster){
-    var values = cluster_state.map(function(element){
-        if (element[1]===cluster){return element[0]}})
-    return values
-}); // for each cluster, find the values that belong to that cluster and put them in a new array
-//allclusters
+    var allclusters = clusters.map(function(cluster){
+        var values = cluster_state.map(function(element){
+            if (element[1]===cluster){return element[0]}})
+        return values
+    }); // for each cluster, find the values that belong to that cluster and put them in a new array
 
-var allclusters = allclusters.map(a => {
-    var af = a.filter(c => {
-        return c !== undefined;
-        });
-        return af
-    }); // remove the 'undefined' elements
-//allclusters
- 
-var centroidsnew = allclusters.map(function(cluster){
-    var centroid = mean(cluster)
-    return centroid
-});// make a new array with the new centroids
-//centroidsnew
+    var allclusters = allclusters.map(a => {
+        var af = a.filter(c => {
+            return c !== undefined;
+            });
+            return af
+        }); // remove the 'undefined' elements
+     
+    var centroidsnew = allclusters.map(function(cluster){
+        var centroid = mean(cluster)
+        return centroid
+    });// make a new array with the new centroids
 
-var centroids = centroidsnew;
+    var centroids = centroidsnew;
 
 } while (centroids!==centroidsnew);
 
@@ -85,6 +80,6 @@ var finalClusters = allclusters.map(c => {
     
 finalClusters;
 
-// how to link them back to their probes?
+// TO DO: how to link them back to their probes?
 
  
