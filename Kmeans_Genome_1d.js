@@ -1,85 +1,72 @@
+/// K-means for 1 dimension for icSARS sample and 10 probes//
 use GEO
-geo = db.GEO
+function GetKMeans_icSARS(k){
 
-// make a new collection choosing the two samples to compare and the list of 10 gene probes
-var target1 = 'icSARS' // sample we are interested in
-var target2 = 'Mock' // control (mock infection)
-var probes_list = ['$A_23_P100177', '$A_23_P100196', '$A_23_P100156', '$A_23_P100315', '$A_23_P100556', '$A_23_P100676',
-'$A_23_P100764','$A_23_P111141', '$A_23_P111571', '$A_23_P112726' ] // any number of probes
-var time_slices = '48h\\' // any number of time slices
-var replicate = 3 // a single replicate (for now until we have averages)
+    var collection = db.genome_icSARS.find().toArray() // get the data from the icSARS collection of 10 probes
+    var target_array = collection[1].probeArray // get the second document (for icSARS)
+    var clusters = Array.from(Array(k).keys()) // create clusters
+    var centroids = target_array.sort(a => Math.random() - Math.random()).slice(0, k) // choose k random values as centroids
 
-var aggregated = geo.aggregate(
-   [{$project: {"FactorValue [INFECTION CODE]":1,'FactorValue [TIME]\\':1,'Characteristics [biological replicate]':1, probeArray: probes_list}},
-   {$match: {'FactorValue [TIME]\\':{$in: [time_slices]}}}, 
-   {$match: {'FactorValue [INFECTION CODE]': {$in: [target1, target2]}}},
-   {$match: {'Characteristics [biological replicate]':{$in: [replicate]}}}
-   //{$group: {_id: {code:"$FactorValue [INFECTION CODE]", time:'$FactorValue [TIME]\\'}},
-    // probeAvg: {$avg: '$probeArray'}} // take the average of the 3 replicates
-   ]
-).toArray()
-aggregated // TO DO: OUTPUT THIS TO A NEW COLLECTION 
-   
-/// KMEANS for 1 dimension///
-/// set parameters ///
-target_name = 'icSARS' // can only uses data for a single sample (1 dimension)
-collection = db.genome_icSARS // give the collection name
-var k = 3 // set the number of clusters
-   
-//aggregated.aggregate([{$match: {'FactorValue [INFECTION CODE]': {$in: [target_name]}}}]); 
-// TO DO: this should return a single document
+    function distance(a,b){
+        return Math.abs(a-b)}; // calculates euclidian distance for 1 dimension
 
-var testarray = aggregated[1].probeArray
-var clusters = Array.from(Array(k).keys()) // create clusters
-var centroids = testarray.sort(() => Math.random() - Math.random()).slice(0, k) // choose k random values as centroids
+    function mean(element){
+        var n = element.length
+        var mean = element.reduce((a,b) => a+b)/n;
+        return mean}; // calculates mean for an array
 
-function distance(a,b){
-    return Math.abs(a-b)}; // calculates euclidian distance for 1 dimension
+    do {
+        
+        var cluster_state = target_array.map(function(val){
+            var distances = centroids.map(c => (distance(val,c))) // distance between each centroid and value
+            min = Math.min.apply(Math,distances) // min distance
+            nearest = distances.indexOf(Math.min.apply(Math,distances)) // get the nearest cluster
+            return [val, nearest]
+        }) // returns an array for each value with the value and the nearest cluster
 
-function mean(element){
-    var n = element.length
-    var mean = element.reduce((a,b) => a+b)/n;
-    return mean}; // calculates mean for an array
+        var all_clusters = clusters.map(function(cluster){
+            var values = cluster_state.map(function(element){
+                if (element[1]===cluster){return element[0]}})
+            return values
+        }); // for each cluster, find the values that belong to that cluster and put them in a new array
 
-do {
-    
-    var cluster_state = testarray.map(function(val){
-        var distances = centroids.map(c => (distance(val,c))) // distance between each centroid and value
-        min = Math.min.apply(Math,distances) // min distance
-        nearest = distances.indexOf(Math.min.apply(Math,distances)) // get the nearest cluster
-        return [val, nearest]
-    }) // returns an array for each value with the value and the nearest cluster
+        var all_clusters = all_clusters.map(a => {
+            var af = a.filter(c => {
+                return c !== undefined;
+                });
+                return af
+            }); // remove the 'undefined' elements
+         
+        var centroids_new = all_clusters.map(function(cluster){
+            var centroid = mean(cluster)
+            return centroid
+        });// make a new array with the new centroids
 
-    var allclusters = clusters.map(function(cluster){
-        var values = cluster_state.map(function(element){
-            if (element[1]===cluster){return element[0]}})
-        return values
-    }); // for each cluster, find the values that belong to that cluster and put them in a new array
+        var centroids = centroids_new;
 
-    var allclusters = allclusters.map(a => {
-        var af = a.filter(c => {
-            return c !== undefined;
-            });
-            return af
-        }); // remove the 'undefined' elements
-     
-    var centroidsnew = allclusters.map(function(cluster){
-        var centroid = mean(cluster)
-        return centroid
-    });// make a new array with the new centroids
+    } while (centroids!==centroids_new);
 
-    var centroids = centroidsnew;
+    var final_clusters = all_clusters.map(c => {
+        var vals = c
+        var index = all_clusters.indexOf(c)
+        var centroid = centroids_new[index]
+        var cluster = {cluster: all_clusters.indexOf(c), centroid: centroid, values: vals}
+        return cluster
+        }); // return the final clusters and centroids
+        
+    var intra_cluster_distance = final_clusters.map(c => {
+        var cent = c['centroid']
+        var distances = c['values'].map(v => distance(cent,v))
+        var sum_distances = distances.reduce((a,b) => a+b)
+        return sum_distances}); // calculate the intra-cluser distance for every cluster or the sum of distances from value to centroid
+           
+    var avg_intra_cluster_distance = mean(intra_cluster_distance); // take the average
+        
+    return {final_clusters, avg_intra_cluster_distance};
+};
 
-} while (centroids!==centroidsnew);
-
-var finalClusters = allclusters.map(c => {
-    var vals = c
-    var cluster = {cluster: allclusters.indexOf(c), values: vals}
-    return cluster
-    });
-    
-finalClusters;
+GetKMeans_icSARS(3);
 
 // TO DO: how to link them back to their probes?
-
- 
+// TO DO if time: find the optimal k
+// TO DO if time: more than 1 dimension
