@@ -1,3 +1,3 @@
 # DBDS
 
-## Projects for CS527 Spring 2020
+### Projects for CS527 Spring 2020
